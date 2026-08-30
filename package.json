@@ -1,0 +1,42 @@
+{
+  "name": "better-auth-express-app",
+  "version": "1.0.0",
+  "description": "Production-ready Express + Better Auth API backed by Supabase PostgreSQL.",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "auth:secret": "auth secret",
+    "auth:generate": "auth generate",
+    "auth:migrate": "auth migrate"
+  },
+  "keywords": [
+    "better-auth",
+    "express",
+    "supabase",
+    "postgresql"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-auth": "^1.7.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.3",
+    "auth": "^1.7.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
