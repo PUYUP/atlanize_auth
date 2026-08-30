@@ -25,8 +25,8 @@ fi
 
 echo "### Mengunduh parameter TLS yang disarankan (Nginx) ..."
 mkdir -p "$data_path/conf"
-curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
-curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem > "$data_path/conf/ssl-dhparams.pem"
+curl -s https://raw.githubusercontent.com/simnalamburt/nginx.conf/refs/heads/master/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
+curl -s https://raw.githubusercontent.com/prooph/docker-files/refs/heads/master/nginx/www/config/ssl/dhparam.pem > "$data_path/conf/ssl-dhparams.pem"
 echo
 
 echo "### Membuat sertifikat sementara (dummy) untuk $domains ..."
