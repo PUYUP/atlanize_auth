@@ -63,6 +63,16 @@ export const auth = betterAuth({
 
   advanced: {
     useSecureCookies: process.env.NODE_ENV === "production",
+    ipAddress: {
+      // By default Better Auth parses headers like x-forwarded-for.
+      // Since it's behind Nginx in docker-compose, we can just allow it
+      // or specify the nginx network IP. An empty trustedProxies or trusting all proxies
+      // might be required if we don't know the exact bridge IP.
+      // Let's set it to true or a wildcard if it accepts boolean, or just trust common private IPs.
+      // But actually, just passing an empty array to allow whatever or leaving it to parse the headers.
+      // Let's define the header that nginx sets:
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
   },
 
   plugins: [
