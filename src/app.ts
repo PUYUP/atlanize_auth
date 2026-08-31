@@ -4,6 +4,7 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import healthRouter from "./routes/health.js";
 import meRouter from "./routes/me.js";
+import addMembersRouter from "./routes/add-members.js";
 import { notFoundHandler, errorHandler } from "./middleware/error-handler.js";
 
 export function createApp(): Express {
@@ -35,6 +36,7 @@ export function createApp(): Express {
 
   app.use("/health", healthRouter);
   app.use("/api/me", meRouter);
+  app.use("/api/members", addMembersRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
