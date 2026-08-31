@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import type { BetterAuthOptions } from "better-auth";
-import { organization } from "better-auth/plugins";
+import { organization, bearer } from "better-auth/plugins";
 import { pool } from "./db.js";
 
 const trustedOrigins = (process.env.TRUSTED_ORIGINS ?? "")
@@ -76,6 +76,7 @@ export const auth = betterAuth({
   },
 
   plugins: [
+    bearer(),
     organization({
       teams: {
         enabled: true,
