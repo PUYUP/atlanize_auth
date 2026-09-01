@@ -46,7 +46,7 @@ export const auth = betterAuth({
   socialProviders,
 
   session: {
-    modelName: "ba_sessions",
+    modelName: "ritize_sessions",
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // refresh once per day of activity
     cookieCache: {
@@ -74,7 +74,9 @@ export const auth = betterAuth({
       ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
     },
     database: {
-      generateId: "uuid", // Forces UUID v4 generation across all tables
+      generateId: () => {
+        return crypto.randomUUID();
+      }
     },
   },
 
@@ -88,35 +90,35 @@ export const auth = betterAuth({
       },
       schema: {
         team: {
-          modelName: "ba_teams",
+          modelName: "ritize_teams",
         },
         teamMember: {
-          modelName: "ba_team_members",
+          modelName: "ritize_team_members",
         },
         organizationRole: {
-          modelName: "ba_organization_roles",
+          modelName: "ritize_organization_roles",
         },
         invitation: {
-          modelName: "ba_invitations",
+          modelName: "ritize_invitations",
         },
         organization: {
-          modelName: "ba_organizations",
+          modelName: "ritize_organizations",
         },
         member: {
-          modelName: "ba_organization_members",
+          modelName: "ritize_organization_members",
         },
       },
     }),
   ],
 
   user: {
-    modelName: "ba_users",
+    modelName: "ritize_users",
   },
   account: {
-    modelName: "ba_accounts",
+    modelName: "ritize_accounts",
   },
   verification: {
-    modelName: "ba_verifications",
+    modelName: "ritize_verifications",
   },
 
 });
