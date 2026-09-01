@@ -73,6 +73,9 @@ export const auth = betterAuth({
       // Let's define the header that nginx sets:
       ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
     },
+    database: {
+      generateId: "uuid", // Forces UUID v4 generation across all tables
+    },
   },
 
   plugins: [
