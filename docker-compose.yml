@@ -10,7 +10,7 @@ services:
     environment:
       NODE_ENV: production
     volumes:
-      - ${GCP_KEY_FILE}:/app/gen-lang-client-0445160635-c7bcb668a285.json:ro
+      - ${GCP_KEY_FILE}:/gen-lang-client-0445160635-c7bcb668a285.json:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 30s
