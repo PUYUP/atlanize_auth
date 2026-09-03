@@ -5,6 +5,8 @@ import { auth } from "./lib/auth.js";
 import healthRouter from "./routes/health.js";
 import meRouter from "./routes/me.js";
 import addMembersRouter from "./routes/add-members.js";
+import gcsMetadataRouter from "./routes/gcs/metadata.js";
+import gcsSignedUrlRouter from "./routes/gcs/signed-url.js";
 import { notFoundHandler, errorHandler } from "./middleware/error-handler.js";
 
 export function createApp(): Express {
@@ -37,6 +39,8 @@ export function createApp(): Express {
   app.use("/health", healthRouter);
   app.use("/api/me", meRouter);
   app.use("/api/members", addMembersRouter);
+  app.use("/api/gcs/metadata", gcsMetadataRouter);
+  app.use("/api/gcs/signed-url", gcsSignedUrlRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
