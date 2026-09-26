@@ -1,0 +1,20 @@
+[
+    {
+        "origin": [
+            "http://localhost:8100",
+            "http://localhost:5173",
+            "https://atlanize.com",
+            "https://www.atlanize.com"
+        ],
+        "method": [
+            "GET",
+            "HEAD",
+            "PUT"
+        ],
+        "responseHeader": [
+            "Content-Type",
+            "x-goog-resumable"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]

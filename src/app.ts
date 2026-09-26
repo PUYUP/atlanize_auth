@@ -7,6 +7,7 @@ import meRouter from "./routes/me.js";
 import addMembersRouter from "./routes/add-members.js";
 import gcsMetadataRouter from "./routes/gcs/metadata.js";
 import gcsSignedUrlRouter from "./routes/gcs/signed-url.js";
+import aiChatRouter from "./routes/ai/chat.js";
 import { notFoundHandler, errorHandler } from "./middleware/error-handler.js";
 
 export function createApp(): Express {
@@ -41,6 +42,7 @@ export function createApp(): Express {
   app.use("/api/members", addMembersRouter);
   app.use("/api/gcs/metadata", gcsMetadataRouter);
   app.use("/api/gcs/signed-url", gcsSignedUrlRouter);
+  app.use("/api/ai", aiChatRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
