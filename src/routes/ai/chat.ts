@@ -9,6 +9,10 @@ import { supabase } from "../../lib/supabase.js";
 
 const router = Router();
 
+// Tentukan berapa banyak pesan terakhir yang ingin diingat AI.
+// Angka genap disarankan (misal 6: berarti 3 interaksi tanya-jawab terakhir)
+const MAX_HISTORY = 6;
+
 // cors() menangani preflight OPTIONS otomatis. Kalau app utama sudah pasang
 // cors()/express.json() secara global, dua baris di bawah ini boleh dihapus
 // supaya body tidak diparse dua kali.
@@ -39,6 +43,19 @@ function removeDuplicateMessages(messages: UIMessage[]): UIMessage[] {
         seen.add(message.id);
         return true;
     });
+}
+
+function getRecentMessages(messages: UIMessage[], maxHistory: number): UIMessage[] {
+    let sliced = messages.slice(-maxHistory);
+
+    // Buang pesan di awal yang bukan role "user" —
+    // provider seperti Gemini wajib history dimulai dari user.
+    const firstUserIndex = sliced.findIndex((m) => m.role === "user");
+    if (firstUserIndex > 0) {
+        sliced = sliced.slice(firstUserIndex);
+    }
+
+    return sliced;
 }
 
 router.post("/chat", async (req: Request, res: Response) => {
@@ -90,10 +107,26 @@ router.post("/chat", async (req: Request, res: Response) => {
         console.error("Gagal konek ke MCP server, lanjut tanpa MCP tools:", err);
     }
 
+    // Potong array messages agar tidak semua history dikirim
+    const recentMessages = getRecentMessages(messages, MAX_HISTORY);
+
     const result = streamText({
         model: google('gemini-3.5-flash-lite'),
-        messages: await convertToModelMessages(messages),
+        messages: await convertToModelMessages(recentMessages),
         stopWhen: isStepCount(5),
+        onEnd: async ({ usage, ...abc }) => {
+            const balance = userData.token_balance;
+            const { totalTokens } = usage;
+
+            if (totalTokens && balance > 0) {
+                const updatedBalance = balance - totalTokens;
+
+                const { error } = await supabase
+                    .from("user")
+                    .update({ token_balance: updatedBalance })
+                    .eq("id", userData.id);
+            }
+        },
         tools: {
             ...mcpTools,
             getCurrentDate: tool({
@@ -126,6 +159,24 @@ router.post("/chat", async (req: Request, res: Response) => {
             stream: result.stream,
             originalMessages: messages,
             generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
+            messageMetadata: ({ part }) => {
+                if (part.type === "start") {
+                    return { model: "gemini-3.5-flash-lite" };
+                }
+                if (part.type === "finish") {
+                    // part.totalUsage = akumulasi token dari SEMUA step
+                    // (relevan karena kamu pakai stopWhen: isStepCount(5))
+                    const totalTokens = part.totalUsage.totalTokens ?? 0;
+                    return {
+                        usage: {
+                            inputTokens: part.totalUsage.inputTokens,
+                            outputTokens: part.totalUsage.outputTokens,
+                            totalTokens: part.totalUsage.totalTokens,
+                        },
+                        remainingBalance: userData.token_balance - totalTokens,
+                    };
+                }
+            },
             onEnd: async ({ messages: finalMessages }) => {
                 const isNewChat = messages.length === 1;
                 const firstMessage = messages[0]; // UIMessage | undefined
