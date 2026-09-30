@@ -1,23 +1,20 @@
-import express, { Router, type Request, type Response, type NextFunction } from "express";
+import express, { Router, type Request, type Response } from "express";
 import cors from "cors";
 import type { UIMessage } from "@ai-sdk/react";
 import { convertToModelMessages, createIdGenerator, generateText, isStepCount, pipeUIMessageStreamToResponse, streamText, tool, toUIMessageStream } from "ai";
-import { google } from '@ai-sdk/google';
+import { google } from "@ai-sdk/google";
 import z from "zod";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { supabase } from "../../lib/supabase.js";
 
 const router = Router();
 
-// Tentukan berapa banyak pesan terakhir yang ingin diingat AI.
-// Angka genap disarankan (misal 6: berarti 3 interaksi tanya-jawab terakhir)
+// Angka genap disarankan (6 = 3 interaksi tanya-jawab terakhir)
 const MAX_HISTORY = 6;
 
-// cors() menangani preflight OPTIONS otomatis. Kalau app utama sudah pasang
-// cors()/express.json() secara global, dua baris di bawah ini boleh dihapus
-// supaya body tidak diparse dua kali.
 router.use(cors());
-router.use(express.json());
+// Sekarang body hanya 1 pesan, tapi beri ruang untuk lampiran base64.
+router.use(express.json({ limit: "5mb" }));
 
 function getMessageText(message: UIMessage): string {
     return message.parts
@@ -33,13 +30,10 @@ function buildFallbackTitle(firstMessage: UIMessage): string {
 }
 
 function removeDuplicateMessages(messages: UIMessage[]): UIMessage[] {
-    const seen = new Set();
+    const seen = new Set<string>();
 
-    return messages.filter((message: UIMessage) => {
-        if (seen.has(message.id)) {
-            return false;
-        }
-
+    return messages.filter((message) => {
+        if (seen.has(message.id)) return false;
         seen.add(message.id);
         return true;
     });
@@ -48,8 +42,7 @@ function removeDuplicateMessages(messages: UIMessage[]): UIMessage[] {
 function getRecentMessages(messages: UIMessage[], maxHistory: number): UIMessage[] {
     let sliced = messages.slice(-maxHistory);
 
-    // Buang pesan di awal yang bukan role "user" —
-    // provider seperti Gemini wajib history dimulai dari user.
+    // Gemini mewajibkan history dimulai dari role "user"
     const firstUserIndex = sliced.findIndex((m) => m.role === "user");
     if (firstUserIndex > 0) {
         sliced = sliced.slice(firstUserIndex);
@@ -59,36 +52,49 @@ function getRecentMessages(messages: UIMessage[], maxHistory: number): UIMessage
 }
 
 router.post("/chat", async (req: Request, res: Response) => {
-    const { messages: incomingMessages, id: chatId }: { messages: UIMessage[]; id: string } = req.body;
+    const { message, id: chatId }: { message: UIMessage; id: string } = req.body;
+
+    if (!message || !chatId) {
+        return res.status(400).json({ error: "Body harus berisi `message` dan `id`." });
+    }
+
     const { authorization } = req.headers;
     const token = authorization?.replace(/^Bearer\s+/i, "");
     const { data: user, error } = await supabase.auth.getUser(token!);
 
-    if (error || !user) {
+    if (error || !user?.user) {
         return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // getting `user` from public.user
-    const { data: userData } = await supabase.from('user')
-        .select('*')
-        .eq('auth_user_id', user.user?.id)
+    const { data: userData } = await supabase
+        .from("user")
+        .select("*")
+        .eq("auth_user_id", user.user.id)
         .single();
 
-    // get history of chat messages
-    // --- Load history yang SUDAH tersimpan di database (source of truth) ---
+    if (!userData) {
+        return res.status(401).json({ error: "User tidak ditemukan" });
+    }
+
+    // --- History dari database (source of truth) ---
     const { data: existingChat } = await supabase
         .from("chats")
         .select("messages")
         .eq("conversation_id", chatId)
         .eq("user_id", userData.id)
-        .maybeSingle(); // null kalau chat baru, bukan error
+        .maybeSingle();
 
     const previousMessages: UIMessage[] = existingChat?.messages ?? [];
 
-    // Gabungkan: history dari DB + pesan baru dari client
-    const messages = [...previousMessages, ...incomingMessages];
+    // Kalau id pesan sudah ada di DB (regenerate/edit), potong sampai situ lalu ganti.
+    // Kalau belum ada, tambahkan di akhir.
+    const idx = previousMessages.findIndex((m) => m.id === message.id);
+    const messages: UIMessage[] =
+        idx >= 0
+            ? [...previousMessages.slice(0, idx), message]
+            : [...previousMessages, message];
 
-    // --- Koneksi ke MCP server (HTTP transport, direkomendasikan untuk production) ---
+    // --- MCP server ---
     let mcpTools: Record<string, any> = {};
     let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | undefined;
 
@@ -97,9 +103,7 @@ router.post("/chat", async (req: Request, res: Response) => {
             transport: {
                 type: "http",
                 url: process.env.MCP_SERVER_URL!,
-                headers: authorization
-                    ? { Authorization: authorization }
-                    : undefined,
+                headers: authorization ? { Authorization: authorization } : undefined,
             },
         });
         mcpTools = await mcpClient.tools();
@@ -107,14 +111,13 @@ router.post("/chat", async (req: Request, res: Response) => {
         console.error("Gagal konek ke MCP server, lanjut tanpa MCP tools:", err);
     }
 
-    // Potong array messages agar tidak semua history dikirim
     const recentMessages = getRecentMessages(messages, MAX_HISTORY);
 
     const result = streamText({
-        model: google('gemini-3.5-flash-lite'),
+        model: google("gemini-3.5-flash-lite"),
         messages: await convertToModelMessages(recentMessages),
         stopWhen: isStepCount(5),
-        onEnd: async ({ usage, ...abc }) => {
+        onEnd: async ({ usage }) => {
             const balance = userData.token_balance;
             const { totalTokens } = usage;
 
@@ -125,6 +128,8 @@ router.post("/chat", async (req: Request, res: Response) => {
                     .from("user")
                     .update({ token_balance: updatedBalance })
                     .eq("id", userData.id);
+
+                if (error) console.error("Gagal update token balance:", error);
             }
         },
         tools: {
@@ -164,8 +169,6 @@ router.post("/chat", async (req: Request, res: Response) => {
                     return { model: "gemini-3.5-flash-lite" };
                 }
                 if (part.type === "finish") {
-                    // part.totalUsage = akumulasi token dari SEMUA step
-                    // (relevan karena kamu pakai stopWhen: isStepCount(5))
                     const totalTokens = part.totalUsage.totalTokens ?? 0;
                     return {
                         usage: {
@@ -179,7 +182,7 @@ router.post("/chat", async (req: Request, res: Response) => {
             },
             onEnd: async ({ messages: finalMessages }) => {
                 const isNewChat = messages.length === 1;
-                const firstMessage = messages[0]; // UIMessage | undefined
+                const firstMessage = messages[0];
 
                 const payload: Record<string, any> = {
                     conversation_id: chatId,
@@ -200,7 +203,7 @@ router.post("/chat", async (req: Request, res: Response) => {
 
                 if (isNewChat && firstMessage) {
                     generateText({
-                        model: google('gemini-3.5-flash-lite'),
+                        model: google("gemini-3.5-flash-lite"),
                         prompt: `Buatkan judul singkat (maksimal 6 kata, tanpa tanda kutip) untuk percakapan yang dimulai dengan pesan berikut:\n\n"${getMessageText(firstMessage)}"`,
                     })
                         .then(({ text }) => {
@@ -216,7 +219,6 @@ router.post("/chat", async (req: Request, res: Response) => {
     });
 });
 
-// Method selain POST ke /chat -> 405, meniru pengecekan method di versi asli.
 router.all("/chat", (_req: Request, res: Response) => {
     res.status(405).json({ error: "Method not allowed. Use POST." });
 });
