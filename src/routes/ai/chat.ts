@@ -10,7 +10,7 @@ import { supabase } from "../../lib/supabase.js";
 const router = Router();
 
 // Angka genap disarankan (6 = 3 interaksi tanya-jawab terakhir)
-const MAX_HISTORY = 6;
+const MAX_HISTORY = 1;
 
 router.use(cors());
 // Sekarang body hanya 1 pesan, tapi beri ruang untuk lampiran base64.
