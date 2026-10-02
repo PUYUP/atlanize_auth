@@ -6,6 +6,7 @@ import { google } from "@ai-sdk/google";
 import z from "zod";
 import { createMCPClient } from "@ai-sdk/mcp";
 import { supabase } from "../../lib/supabase.js";
+import { openai } from "@ai-sdk/openai";
 
 const router = Router();
 
@@ -114,7 +115,7 @@ router.post("/chat", async (req: Request, res: Response) => {
     const recentMessages = getRecentMessages(messages, MAX_HISTORY);
 
     const result = streamText({
-        model: google("gemini-3.5-flash-lite"),
+        model: openai('gpt-4o-mini'),
         messages: await convertToModelMessages(recentMessages),
         stopWhen: isStepCount(5),
         onEnd: async ({ usage }) => {
